@@ -1,117 +1,43 @@
-use anyhow::{bail, Result};
+pub mod invoice;
+
+use anyhow::Result;
 use csv::Reader;
-use serde::{Deserialize, Serialize};
+use invoice::InvoiceIterator;
+use std::env;
+use tokio::io::AsyncWriteExt;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::time::{sleep, Duration};
 
-#[derive(Debug, Deserialize)]
-struct Record {
-    #[serde(rename = "InvoiceNo")]
-    invoice_no: String,
+async fn send_data_to_client(mut stream: TcpStream) {
+    let mut invoice_reader = Reader::from_path("data/OnlineRetail.csv").unwrap();
+    let invoice_iter = InvoiceIterator::new(&mut invoice_reader);
 
-    #[serde(rename = "StockCode")]
-    stock_code: String,
-
-    #[serde(rename = "Description")]
-    description: String,
-
-    #[serde(rename = "Quantity")]
-    quantity: i32,
-
-    #[serde(rename = "InvoiceDate")]
-    invoice_date: String,
-
-    #[serde(rename = "UnitPrice")]
-    unit_price: f64,
-
-    #[serde(rename = "CustomerID")]
-    customer_id: String,
-
-    #[serde(rename = "Country")]
-    country: String,
-}
-
-#[derive(Debug, Serialize)]
-struct Stock {
-    #[serde(rename = "StockCode")]
-    stock_code: String,
-
-    #[serde(rename = "Description")]
-    description: String,
-
-    #[serde(rename = "UnitPrice")]
-    unit_price: f64,
-
-    #[serde(rename = "Quantity")]
-    quantity: i32,
-}
-
-#[derive(Debug, Serialize)]
-struct Invoice {
-    #[serde(rename = "InvoiceNo")]
-    invoice_no: String,
-
-    #[serde(rename = "CustomerID")]
-    customer_id: String,
-
-    #[serde(rename = "Country")]
-    country: String,
-
-    #[serde(rename = "InvoiceDate")]
-    invoice_date: String,
-
-    #[serde(rename = "Stocks")]
-    stocks: Vec<Stock>,
-}
-
-impl Invoice {
-    fn new(record: Record) -> Self {
-        let stock = Stock {
-            stock_code: record.stock_code,
-            description: record.description,
-            unit_price: record.unit_price,
-            quantity: record.quantity,
-        };
-        Invoice {
-            invoice_no: record.invoice_no,
-            customer_id: record.customer_id,
-            country: record.country,
-            invoice_date: record.invoice_date,
-            stocks: vec![stock],
-        }
+    for invoice in invoice_iter {
+        let invoice = invoice.unwrap();
+        let invoice_json = serde_json::to_string(&invoice).unwrap();
+        stream.write_all(invoice_json.as_bytes()).await.unwrap();
+        stream.write_all(b"\r\n").await.unwrap();
+        stream.flush().await.unwrap();
+        sleep(Duration::from_secs(1)).await;
     }
 
-    fn add_stock(&mut self, record: Record) -> Result<()> {
-        if self.invoice_no != record.invoice_no {
-            bail!("Invoice number does not match");
-        }
-        let stock = Stock {
-            stock_code: record.stock_code,
-            description: record.description,
-            unit_price: record.unit_price,
-            quantity: record.quantity,
-        };
-        self.stocks.push(stock);
-        Ok(())
-    }
+    stream.shutdown().await.unwrap();
 }
 
-fn main() -> Result<()> {
-    const FILE_PATH: &str = "data/OnlineRetail.csv";
-    let mut reader = Reader::from_path(FILE_PATH).unwrap();
-    let mut current_invoice: Option<Invoice> = None;
-    for result in reader.deserialize() {
-        let record: Record = result?;
-        if let Some(invoice) = current_invoice.as_mut() {
-            match invoice.add_stock(record) {
-                Ok(_) => {}
-                Err(e) => {
-                    let json = serde_json::to_string(&invoice).unwrap();
-                    println!("{}", json);
-                    return Ok(());
-                }
-            }
-        } else {
-            current_invoice = Some(Invoice::new(record));
-        }
+#[tokio::main]
+async fn main() -> Result<()> {
+    let stream_ip = env::var("STREAM_SERVER_IP")?;
+    let stream_port = env::var("STREAM_SERVER_PORT")?;
+    let addr = format!("{}:{}", stream_ip, stream_port);
+    let listner = TcpListener::bind(&addr).await?;
+    println!("Listening on: {}", addr);
+
+    loop {
+        let (stream, addr) = listner.accept().await?;
+        println!("Connection from: {}", addr);
+
+        tokio::spawn(async move {
+            send_data_to_client(stream).await;
+        });
     }
-    Ok(())
 }
