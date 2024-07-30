@@ -4,15 +4,8 @@
 
 ## 設定
 
-### 環境変数
-
 - `STREAM_SERVER_IP`
 - `STREAM_SERVER_PORT`
-
-### サンプルデータ
-
-- `data/OnlineRetail.csv`
-(ダウンロードxlsxデータをを上記の名前でcsvにエクスポートしたもの)
 
 ## 実行
 
