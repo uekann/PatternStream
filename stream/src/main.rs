@@ -18,7 +18,7 @@ async fn send_data_to_client(mut stream: TcpStream) {
         stream.write_all(invoice_json.as_bytes()).await.unwrap();
         stream.write_all(b"\r\n").await.unwrap();
         stream.flush().await.unwrap();
-        sleep(Duration::from_secs(1)).await;
+        // sleep(Duration::from_secs(1)).await;
     }
 
     stream.shutdown().await.unwrap();

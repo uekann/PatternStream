@@ -120,6 +120,9 @@ impl<'a> Iterator for InvoiceIterator<'a> {
                 Some(Err(err)) => return Some(Err(err.into())),
                 None => return None,
             };
+            if record.unit_price == 0.0 {
+                continue;
+            }
             match self.current_invoice.add_stock(record.clone()) {
                 Ok(_) => {}
                 Err(_) => {

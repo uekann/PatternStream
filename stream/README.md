@@ -4,8 +4,15 @@
 
 ## 設定
 
+### 環境変数
+
 - `STREAM_SERVER_IP`
 - `STREAM_SERVER_PORT`
+
+### データ
+
+[このサイト](https://archive.ics.uci.edu/dataset/352/online+retail)からダウンロードしたxlsxファイルを`data/OnlineRetail.csv`として保存。
+その後`python make_item_list.py`を実行。
 
 ## 実行
 
